@@ -1,5 +1,5 @@
 import os
-os.environ['OPENAI_API_KEY'] = 'xxxxx'
+os.environ['OPENAI_API_KEY'] = 'xxxxxx'
 
 import os
 import pandas as pd
@@ -11,8 +11,6 @@ from openai import OpenAI
 from typing import Dict, List, Callable, Any
 import gradio as gr
 from shape_print import explain_mods_kernel_shap
-
-# Remove the global conversation_history variable
 
 # Base class for tools and a simple tool registry
 class Tool:
@@ -166,9 +164,9 @@ def Dead_analysis(**patient_data) -> str:
         output.append("Mortality model analysis results:")
         analysis_value = explain_mods_kernel_shap(
             df_patient=df,
-            df_train="./Dead/mimicdeadtrain.csv",
-            scaler_file="./Dead/dead_scaler.pkl",
-            model_file="./Dead/dead_xgb.pkl",
+            df_train="./Dead/mimicdeadtrain-v2.csv",
+            scaler_file="./Dead/dead_scaler_v1.pkl",
+            model_file="./Dead/dead_xgb_model_v2.pkl",
             label_col=None,
             patient_row=0,
             background_size=100,
@@ -176,6 +174,7 @@ def Dead_analysis(**patient_data) -> str:
         )
         output.append(f"{analysis_value}")
         output.append("Based on SHAP analysis, the patient's 24-hour mortality risk assessment is complete.")
+        output.append("present the SHAP analysis results in detail in a tabular format, Add Clinical Interpretation in the table to determine whether each SHAP value aligns with clinical.")
         return "\n".join(output)
     except Exception as e:
         return f"Dead model analysis error: {str(e)}"
@@ -188,9 +187,9 @@ def Hx_analysis(**patient_data) -> str:
         output.append("Hypoxemia model analysis results:")
         analysis_value = explain_mods_kernel_shap(
             df_patient=df,
-            df_train="./Hx/mimichxtrain.csv",
-            scaler_file="./HX/Hx_scaler.pkl",
-            model_file="./HX/Hx_model.pkl",
+            f_train="./Hx/mimichxtrain-v1.csv",
+            scaler_file="./HX/HX_scaler.pkl",
+            model_file="./HX/HX_XGB_Model.pkl",
             label_col=None,
             patient_row=0,
             background_size=100,
@@ -198,6 +197,7 @@ def Hx_analysis(**patient_data) -> str:
         )
         output.append(f"{analysis_value}")
         output.append("Based on SHAP analysis, the patient's 6-hour hypoxemia risk assessment is complete.")
+        output.append("present the SHAP analysis results in detail in a tabular format, Add Clinical Interpretation in the table to determine whether each SHAP value aligns with clinical.")
         return "\n".join(output)
     except Exception as e:
         return f"HX model analysis error: {str(e)}"
@@ -210,9 +210,9 @@ def Hs_analysis(**patient_data) -> str:
         output.append("Hemorrhagic shock model analysis results:")
         analysis_value = explain_mods_kernel_shap(
             df_patient=df,
-            df_train="./Hs/mimichstrain.csv",
+            df_train="./Hs/mimichstrain-v1.csv",
             scaler_file="./Hs/Hs_scaler.pkl",
-            model_file="./Hs/Hs_model.pkl",
+            model_file="./Hs/hs_xgb_best_model.pkl",
             label_col=None,
             patient_row=0,
             background_size=100,
@@ -220,6 +220,7 @@ def Hs_analysis(**patient_data) -> str:
         )
         output.append(f"{analysis_value}")
         output.append("Based on SHAP analysis, the patient's 6-hour hemorrhagic shock risk assessment is complete.")
+        output.append("present the SHAP analysis results in detail in a tabular format, Add Clinical Interpretation in the table to determine whether each SHAP value aligns with clinical.")
         return "\n".join(output)
     except Exception as e:
         return f"HS model analysis error: {str(e)}"
@@ -244,13 +245,14 @@ def mods_analysis(**patient_data) -> str:
         output.append("Top 10 contributing features:")
         output.extend(explanations)
         output.append("Based on SHAP analysis, the patient's 24-hour MODS risk assessment is complete.")
+        output.append("present the SHAP analysis results in detail in a tabular format, Add Clinical Interpretation in the table to determine whether each SHAP value aligns with clinical.")
         return "\n".join(output)
     except Exception as e:
         return f"MODS model analysis error: {str(e)}"
 
 def choose_tools(user_input: str, available_tools: List[Dict[str, str]]) -> List[str]:
     client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'),
-                    base_url="xxxxx")
+                    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1")
     tools_info = "\n".join([f"Tool name: {tool['name']}\nDescription: {tool['description']}" for tool in available_tools])
     prompt = (
         f"Available tools:\n{tools_info}\n\n"
@@ -265,9 +267,9 @@ def choose_tools(user_input: str, available_tools: List[Dict[str, str]]) -> List
     ]
     try:
         completion = client.chat.completions.create(
-            model="gpt-5-2025-08-07",
+            model="llama-4-maverick-17b-128e-instruct",
             messages=messages,
-            max_tokens=1024
+            max_tokens=512
         )
         response = completion.choices[0].message.content
         tool_names = json.loads(response)
@@ -276,13 +278,9 @@ def choose_tools(user_input: str, available_tools: List[Dict[str, str]]) -> List
         return [tool['name'] for tool in available_tools]
 
 def get_comprehensive_analysis(user_input: str, tool_results: List[str], conversation_history: List[Dict[str, str]]) -> tuple:
-    """
-    Modified function that takes conversation_history as a parameter.
-    Returns (answer, updated_conversation_history).
-    """
     client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'),
-                    base_url="xxxxx")
-    
+                    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1")
+ 
     # Create a copy of conversation_history to avoid modifying the original data
     updated_history = conversation_history.copy() if conversation_history else []
     
@@ -299,8 +297,10 @@ def get_comprehensive_analysis(user_input: str, tool_results: List[str], convers
 
     try:
         completion = client.chat.completions.create(
-            model="gpt-5-2025-08-07",
-            messages=messages
+            model="llama-4-maverick-17b-128e-instruct",
+            messages=messages,
+            max_tokens=4096,
+            temperature=0.6
         )
         answer = completion.choices[0].message.content
         updated_history.append({"role": "assistant", "content": answer})
@@ -309,9 +309,7 @@ def get_comprehensive_analysis(user_input: str, tool_results: List[str], convers
         return f"Comprehensive analysis error: {str(e)}", updated_history
 
 def respond(message, chat_history, conversation_state, *input_values):
-    """
-    Modified respond function that uses conversation_state to manage conversation history.
-    """
+
     # Initialize state
     if chat_history is None:
         chat_history = []
@@ -370,20 +368,20 @@ def respond(message, chat_history, conversation_state, *input_values):
             except Exception as e:
                 tool_results.append(f"=== {tool.name} execution error ===\n{e}")
 
-    # Get a comprehensive analysis, passing conversation_state
+    # Get comprehensive analysis and pass conversation_state
     answer, updated_conversation_state = get_comprehensive_analysis(message, tool_results, conversation_state)
     
-    # Update the chat interface
+    # Update chat UI
     chat_history.append((message, answer))
     
     # Return an empty input box, updated chat history, and updated conversation state
     return "", chat_history, updated_conversation_state
 
 def clear_conversation():
-    """Function to clear conversation history"""
+    """Function to clear the conversation history."""
     return None, []  # Clear chatbot and conversation_state
 
-# === CSS styles (leave unchanged) ===
+# === CSS styles ===
 custom_css = """
 /* Base style reset */
 .gradio-container {
@@ -489,7 +487,7 @@ html, body, gradio-app, #root, .gradio-container {
     justify-content: center;
 }
 
-.feature-card::before {
+feature-card::before {
     content: '';
     position: absolute;
     top: 0;
@@ -833,8 +831,8 @@ html, body, gradio-app, #root, .gradio-container {
 """
 
 # Build UI
-with gr.Blocks(css=custom_css, title="MODS Intelligent Assessment System", theme=gr.themes.Soft()) as demo:
-    # Add a State component to store conversation history
+with gr.Blocks(css=custom_css, title="Intelligent Assessment System", theme=gr.themes.Soft()) as demo:
+    # Add a State component to store the conversation history
     conversation_state = gr.State([])
     
     # Header (full width)
@@ -998,7 +996,7 @@ with gr.Blocks(css=custom_css, title="MODS Intelligent Assessment System", theme
     example_btn3.click(lambda: "Please show a full overview of the current patient's physiological data", outputs=msg)
     example_btn4.click(lambda: "Based on the risk assessment, please provide specific clinical advice and interventions", outputs=msg)
     
-    # Interactions - Note that conversation_state has been added
+    # Interactions
     msg.submit(
         respond, 
         [msg, chatbot, conversation_state] + all_inputs, 
