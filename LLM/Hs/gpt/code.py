@@ -35,7 +35,9 @@ def get_response(user_input):
     ]
     completion = client.chat.completions.create(
         model="gpt-5-2025-08-07",
-        messages=messages
+        messages=messages,
+        max_tokens=4096,
+        temperature=0.6
     )
     messages.append({'role': 'assistant', 'content': completion.choices[0].message.content})
     messages.append({'role': 'user', 'content': 'Output only a single numeric value representing the probability of death within the next 24 hours, without a percent sign, and nothing else.'})
@@ -142,3 +144,4 @@ modsp = np.load('llama_results.npy', allow_pickle=True).item()  # Extract the di
 # Convert to DataFrame
 df = pd.DataFrame(list(modsp.items()), columns=['key', 'value'])
 modsp
+
